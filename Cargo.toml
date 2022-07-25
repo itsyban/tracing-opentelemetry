@@ -1,7 +1,7 @@
 [package]
 name = "tracing-opentelemetry"
 version = "0.1.0"
-edition = "2021"
+edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,6 +19,10 @@ tracing-opentelemetry = "0.17.4"
 tracing-appender = { version = "0.2" }
 
 tokio = { version = "1.20.0", features = ["full"] }
+#tokio-compat-02 = "0.2"
 # opentelemetry example
-opentelemetry = { version = "0.17.0", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.16.0"
+#opentelemetry = { version = "0.17.0", default-features = false, features = ["trace"] }
+opentelemetry = { version = "*", features = ["async-std"] }
+opentelemetry-otlp = { version = "*", features = ["grpc-sys"] }
+opentelemetry_sdk = "0.1.0"
+#opentelemetry-jaeger = "0.16.0"

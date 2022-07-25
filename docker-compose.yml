@@ -1,17 +1,91 @@
-version: "2"
+version: "3"
 services:
+  #
+  # Core services. These services allow a Grafana Agent to send data somewhere
+  # and visualize it in Grafana.
+  #
+  # Backends: grafana, loki, cortex, tempo
+  # Example services: avalanche
+  #
 
- hotrod:
-   image: jaegertracing/example-hotrod:latest
-   ports:
-     - "8080:8080"
-   command: ["all"]
-   environment:
-     - JAEGER_AGENT_HOST=collector
-     - JAEGER_AGENT_PORT=6831
+  # grafana:
+  #   image: grafana/grafana:8.3.3
+  #   entrypoint:
+  #     - /usr/share/grafana/bin/grafana-server
+  #     - --homepath=/usr/share/grafana
+  #     - --config=/etc/grafana-config/grafana.ini
+  #   volumes:
+  #     - ./grafana/config:/etc/grafana-config
+  #     - ./grafana/datasources:/etc/grafana/provisioning/datasources
+  #     - ./grafana/dashboards-provisioning:/etc/grafana/provisioning/dashboards
+  #     - ./grafana/dashboards:/var/lib/grafana/dashboards
+  #   ports:
+  #     - "3000:3000"
 
- collector:
-   image: otel/opentelemetry-collector:0.23.0
-   command: "--config /etc/otel-config.yaml"
-   volumes:
-     - ./otel-config.yaml:/etc/otel-config.yaml
+  tempo:
+    image: grafana/tempo:1.3.2
+    command:
+      - "-storage.trace.backend=local"                  # tell tempo where to permanently put traces
+      - "-storage.trace.local.path=/tmp/tempo/traces"
+      - "-storage.trace.wal.path=/tmp/tempo/wal"        # tell tempo where to store the wal
+      - "-auth.enabled=false"                           # disables the requirement for the X-Scope-OrgID header
+      - "-server.http-listen-port=3200"
+    ports:
+      - "3200:3200"
+
+  # tracing load generator
+  synthetic-load-generator:
+    profiles: [agent] # Should only be run if the Agent is present
+    image: omnition/synthetic-load-generator:1.0.25
+    volumes:
+      - ./load-generator:/etc/load-generator
+    environment:
+      - TOPOLOGY_FILE=/etc/load-generator/load-generator.json
+      - JAEGER_COLLECTOR_URL=http://agent:14268
+    depends_on:
+      - agent
+
+  #
+  # Optional Grafana Agent which can collect telemetry and send it to
+  # Loki/Cortex/Tempo.
+  #
+  # Enable with the "agent" profile.
+  #
+
+  agent:
+    profiles: [agent]
+    image: grafana/agent:latest
+    volumes:
+      - ./agent/config:/opt/homebrew/etc/grafana-agent
+    entrypoint:
+      - /bin/agent
+      - -config.file=/etc/agent-config/agent.yaml
+      - -metrics.wal-directory=/tmp/agent/wal
+      - -enable-features=integrations-next
+      - -config.expand-env
+      - -config.enable-read-api
+    environment:
+      HOSTNAME: agent
+      LOKI_HOST: loki:3100
+      TEMPO_HOST: tempo:4317
+      ELASTICSEARCH_HOST: elasticsearch:9200
+    ports:
+      - "12345:12345"
+    depends_on:
+      - tempo
+
+  elasticsearch:
+    profiles: [integrations,elasticsearch]
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=es-grafana-agent-cluster
+      - discovery.type=single-node
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+  
+volumes:
+  elasticsearch_data:
+    driver: local

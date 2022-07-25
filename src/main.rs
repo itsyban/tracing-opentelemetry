@@ -1,6 +1,7 @@
-use opentelemetry::global;
-use opentelemetry::trace::Tracer;
 use std::{error::Error, thread, time::Duration};
+
+use opentelemetry_otlp;
+
 use tracing::{span, trace, warn, Level};
 use tracing_attributes::instrument;
 use tracing_subscriber::prelude::*;
@@ -17,17 +18,31 @@ fn expensive_work() -> &'static str {
     "success"
 }
 
-fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // Install an otel pipeline with a simple span processor that exports data one at a time when
     // spans end. See the `install_batch` option on each exporter's pipeline builder to see how to
     // export in batches.
-    global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-    let tracer = opentelemetry_jaeger::new_pipeline()
-     .with_service_name("report_example")
-     .install_simple()?;
+    // global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+    // let tracer = opentelemetry_jaeger::new_pipeline()
+    //   .with_service_name("report_example")
+    //   .install_simple()?;
+
+    // Then pass it into pipeline builder
+
+    let otlp_exporter = opentelemetry_otlp::new_exporter().tonic();
+    // Then pass it into pipeline builder
+    let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(otlp_exporter)
+            .install_simple()?;
 
     //let tracer = stdout::new_pipeline().install_simple();
     let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    //let subscriber = Registry::default().with(telemetry);
+
+    
     tracing_subscriber::registry()
         .with(opentelemetry)
         .try_init()?;
@@ -48,21 +63,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // Shut down the current tracer provider. This will invoke the shutdown
     // method on all span processors. span processors should export remaining
     // spans before return.
-    global::shutdown_tracer_provider();
-
-    Ok(())
-}
-
-
-fn mymain() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-    let tracer = opentelemetry_jaeger::new_pipeline().install_simple()?;
-
-    tracer.in_span("doing_work", |cx| {
-        // Traced app logic here...
-    });
-
-    global::shutdown_tracer_provider(); // sending remaining spans
+    //global::shutdown_tracer_provider();
 
     Ok(())
 }
