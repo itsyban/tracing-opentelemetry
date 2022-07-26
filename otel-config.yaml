@@ -3,12 +3,14 @@ receivers:
     protocols:
       grpc:
       http:
-  jaeger:
-    protocols:
-      thrift_compact:
 
 processors:
- batch:
+  resource:
+    attributes:
+    - key: service.name
+      action: upsert
+      value: "MyService"
+  batch:
 
 exporters:
   otlp:
@@ -19,7 +21,7 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [otlp, jaeger]
+      receivers: [otlp]
       processors: [batch]
       exporters: [otlp]
     logs:
