@@ -5,11 +5,6 @@ receivers:
       http:
 
 processors:
-  resource:
-    attributes:
-    - key: service.name
-      action: upsert
-      value: "MyService"
   batch:
 
 exporters:
